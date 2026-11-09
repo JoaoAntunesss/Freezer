@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- INTENT: Encontrar algo na app (Stock / Arca) -->
+    <capability android:name="actions.intent.GET_THING">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.example.congelador"
+            android:targetClass="com.example.congelador.MainActivity">
+            <url-template android:value="congelador://lista/ID_GENERICO/{thing.name}" />
+            <parameter
+                android:name="thing.name"
+                android:key="thing.name" />
+        </intent>
+    </capability>
+
+    <!-- INTENT: Criar algo novo na app (Compras / Stock) -->
+    <capability android:name="actions.intent.CREATE_THING">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.example.congelador"
+            android:targetClass="com.example.congelador.MainActivity">
+            <url-template android:value="congelador://compras/nova/{thing.name}" />
+            <parameter
+                android:name="thing.name"
+                android:key="thing.name" />
+        </intent>
+    </capability>
+
+    <!-- CAPABILITY: Criar lista de produtos -->
+    <capability android:name="actions.intent.CREATE_PRODUCT_LIST">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.example.congelador"
+            android:targetClass="com.example.congelador.MainActivity">
+            <url-template android:value="congelador://lista/geral" />
+        </intent>
+    </capability>
+
+    <!-- Atalho estático corrigido com strings referenciadas -->
+    <shortcut
+        android:shortcutId="adicionar_lista"
+        android:enabled="true"
+        android:icon="@android:drawable/ic_menu_agenda"
+        android:shortcutShortLabel="@string/shortcut_short_label"
+        android:shortcutLongLabel="@string/shortcut_long_label">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.example.congelador"
+            android:targetClass="com.example.congelador.MainActivity">
+            <data android:scheme="congelador" android:host="lista" android:path="/geral" />
+        </intent>
+        <capability-binding android:name="actions.intent.CREATE_PRODUCT_LIST" />
+    </shortcut>
+
+</shortcuts>

@@ -1,0 +1,25 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widgetNotaLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121A29"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📝 Quadro de Notas"
+        android:textColor="#38BDF8"
+        android:textStyle="bold"
+        android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/widgetNotaText"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="8dp"
+        android:text="A carregar..."
+        android:textColor="#F1F5F9"
+        android:textSize="14sp" />
+</LinearLayout>

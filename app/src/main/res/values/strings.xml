@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Freezer</string>
+    <string name="shortcut_short_label">Lista de Compras</string>
+    <string name="shortcut_long_label">Abrir lista de compras no Congelador</string>
+</resources>
