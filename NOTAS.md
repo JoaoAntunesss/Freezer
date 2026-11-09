@@ -28,5 +28,14 @@ Faz Sync do Gradle e compila. Sem a chave, a app funciona, só a IA (voz/foto) m
 - Ao abrir, a app vê se há versão nova no GitHub (ramo `atualizacoes`: versao.json + freezer.apk) e oferece "Atualizar": descarrega, mostra o progresso e abre o instalador do Android. Os dados ficam, estão no Firebase.
 - Em Definições há "Procurar atualização".
 - Na primeira vez o Android pede para autorizar o Freezer a "instalar apps desconhecidas".
-- Para publicar uma versão nova: subir `versionCode`/`versionName` em `app/build.gradle.kts` e correr `.\publicar.ps1`.
-- As atualizações têm de ser compiladas neste PC (mesma chave de assinatura); se não, o Android recusa instalar por cima.
+- (Substituído na 1.4: a publicação passou para o GitHub Actions, ver abaixo.)
+
+## 1.4 — publicação automática nos Releases
+- O APK passa a ser compilado pelo GitHub Actions (`.github/workflows/apk.yml`) a cada push no `main` e publicado em Releases como `vX.Y` (`freezer.apk` + `versao.json`).
+- A app procura atualizações em `releases/latest/download/`, já não no ramo `atualizacoes`.
+- Todos os APKs são assinados com a mesma chave (`freezer.jks`, guardada fora do Git), por isso cada versão instala por cima da anterior, seja qual for o PC.
+- Segredos no GitHub (Settings → Secrets and variables → Actions): `KEYSTORE_B64`, `KEYSTORE_PASS`, `KEY_ALIAS`, `GOOGLE_SERVICES_JSON` e `GROQ_API_KEY` (este último é opcional).
+- O SHA-1 da chave tem de estar registado no Firebase para o login com Google funcionar.
+- Para publicar uma versão nova: subir `versionCode`/`versionName` em `app/build.gradle.kts` e fazer push. O `publicar.ps1` foi retirado.
+- Para compilar neste PC com a mesma chave, acrescentar ao `local.properties`: `KEYSTORE=C:/Users/.../freezer.jks`, `KEYSTORE_PASS=...`, `KEY_ALIAS=freezer`.
+- Passagem da 1.3 para a 1.4: a chave mudou, por isso é preciso desinstalar uma vez e instalar o APK dos Releases (os dados ficam, estão no Firebase).
