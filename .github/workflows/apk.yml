@@ -6,13 +6,16 @@ on:
     paths-ignore: ['**.md']
 permissions:
   contents: write
+concurrency:
+  group: publicar-apk
+  cancel-in-progress: true
 jobs:
   apk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 17 }
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: 17, cache: gradle }
       - name: Configuração do Firebase (segredo GOOGLE_SERVICES_JSON)
         env: { GSJ: '${{ secrets.GOOGLE_SERVICES_JSON }}' }
         run: |
@@ -44,5 +47,5 @@ jobs:
           else
             gh release create "v$VERSAO" freezer.apk versao.json --title "Freezer $VERSAO" --notes "$NOTAS" --latest
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with: { name: freezer-apk, path: freezer.apk }
