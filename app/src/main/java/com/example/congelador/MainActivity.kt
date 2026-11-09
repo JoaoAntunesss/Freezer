@@ -1338,6 +1338,10 @@ fun AppNavegacao(viewModel: ArcaViewModel) {
         })
     }
 
+    var novaVersao by remember { mutableStateOf<NovaVersao?>(null) }
+    LaunchedEffect(Unit) { novaVersao = procurarAtualizacao() }
+    novaVersao?.let { DialogoAtualizacao(it) { novaVersao = null } }
+
     LaunchedEffect(Unit) {
         viewModel.carregarConfigs(context)
         agendarVerificacaoDiaria(context)
@@ -3043,6 +3047,33 @@ fun EcraConfiguracoes(viewModel: ArcaViewModel) {
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        var aProcurar by remember { mutableStateOf(false) }
+        var encontrada by remember { mutableStateOf<NovaVersao?>(null) }
+        val scopeAtualizacao = rememberCoroutineScope()
+        Card(
+            modifier = Modifier.fillMaxWidth().border(0.5.dp, GlassBorder, RoundedCornerShape(16.dp)),
+            colors = CardDefaults.cardColors(containerColor = SurfaceDark), shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Versão ${BuildConfig.VERSION_NAME}", color = TextPrimary, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text("Atualiza aqui sem perder dados.", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                }
+                FilledTonalButton(enabled = !aProcurar, onClick = {
+                    aProcurar = true
+                    scopeAtualizacao.launch {
+                        val nova = procurarAtualizacao(); aProcurar = false
+                        if (nova != null) encontrada = nova else Toast.makeText(contextoApp, "Já tens a versão mais recente.", Toast.LENGTH_SHORT).show()
+                    }
+                }, colors = ButtonDefaults.filledTonalButtonColors(containerColor = AccentStart.copy(alpha = 0.16f), contentColor = AccentStart)) {
+                    Text(if (aProcurar) "A procurar…" else "Procurar atualização")
+                }
+            }
+        }
+        encontrada?.let { DialogoAtualizacao(it) { encontrada = null } }
 
         Spacer(modifier = Modifier.height(24.dp))
 

@@ -23,3 +23,10 @@ Faz Sync do Gradle e compila. Sem a chave, a app funciona, só a IA (voz/foto) m
 - Preços, litros e capacidades aceitam vírgula (1,50).
 - Corrigidos fechos inesperados ao tocar duas vezes em Apagar/Guardar/Partilhar nos diálogos.
 - Quantidades nunca ficam abaixo de 1; cancelar a edição de um artigo já não deixa a data presa no formulário seguinte.
+
+## 1.3 — atualizar dentro da app
+- Ao abrir, a app vê se há versão nova no GitHub (Releases) e oferece "Atualizar": descarrega, mostra o progresso e abre o instalador do Android. Os dados ficam, estão no Firebase.
+- Em Definições há "Procurar atualização".
+- Na primeira vez o Android pede para autorizar o Freezer a "instalar apps desconhecidas".
+- Para publicar uma versão nova: subir `versionCode`/`versionName` em `app/build.gradle.kts` e correr `.\publicar.ps1` (precisa de GITHUB_TOKEN).
+- As atualizações têm de ser compiladas neste PC (mesma chave de assinatura); se não, o Android recusa instalar por cima.
