@@ -2644,7 +2644,15 @@ fun EcraDetalheLista(navController: androidx.navigation.NavController, viewModel
             while (maxOf(limites.outWidth, limites.outHeight) / (amostra * 2) >= 1600) amostra *= 2
             val bitmap = android.graphics.BitmapFactory.decodeFile(ficheiroTalao.path, android.graphics.BitmapFactory.Options().apply { inSampleSize = amostra })
             if (bitmap != null) viewModel.processarTalaoComGemini(bitmap, listaRealId)
+            else Toast.makeText(contextoApp, "Não foi possível ler a foto do talão.", Toast.LENGTH_SHORT).show()
         }
+    }
+    // A câmara só pode ser aberta com a permissão dada (a app declara CAMERA; sem ela o Android fecha a app ao tirar a foto).
+    val abrirCamaraTalao: () -> Unit = {
+        try { launcherFotoTalao.launch(uriTalao) } catch (_: Exception) { Toast.makeText(contextoApp, "Não foi possível abrir a câmara.", Toast.LENGTH_SHORT).show() }
+    }
+    val permissaoCamaraTalao = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) abrirCamaraTalao() else Toast.makeText(contextoApp, "Sem acesso à câmara não é possível ler o talão.", Toast.LENGTH_SHORT).show()
     }
 
     LaunchedEffect(viewModel.erroIa) {
@@ -2676,7 +2684,10 @@ fun EcraDetalheLista(navController: androidx.navigation.NavController, viewModel
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
-                onClick = { launcherFotoTalao.launch(uriTalao) }, modifier = Modifier.weight(1f).height(48.dp),
+                onClick = {
+                    if (ContextCompat.checkSelfPermission(contextoApp, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) abrirCamaraTalao()
+                    else permissaoCamaraTalao.launch(Manifest.permission.CAMERA)
+                }, modifier = Modifier.weight(1f).height(48.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = SurfaceDark), border = BorderStroke(1.dp, AccentStart), shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(imageVector = Icons.Default.CameraAlt, contentDescription = null, tint = AccentStart)
