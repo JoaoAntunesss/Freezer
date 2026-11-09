@@ -20,15 +20,35 @@ android {
         applicationId = "com.example.congelador"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.3"
-        buildConfigField("String", "GROQ_API_KEY", "\"${chavesLocais.getProperty("GROQ_API_KEY", "")}\"")
+        versionCode = 5
+        versionName = "1.4"
+        buildConfigField("String", "GROQ_API_KEY", "\"${chavesLocais.getProperty("GROQ_API_KEY", System.getenv("GROQ_API_KEY") ?: "")}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Chave de assinatura fixa: no GitHub Actions vem dos segredos; neste PC, de local.properties (KEYSTORE=..., KEYSTORE_PASS=..., KEY_ALIAS=...).
+    // Assim todos os APKs têm a mesma assinatura e cada versão nova instala por cima da anterior.
+    val ficheiroChave = System.getenv("CI_KEYSTORE") ?: chavesLocais.getProperty("KEYSTORE")
+    val senhaChave = System.getenv("CI_KS_PASS") ?: chavesLocais.getProperty("KEYSTORE_PASS")
+    val aliasChave = System.getenv("CI_KEY_ALIAS") ?: chavesLocais.getProperty("KEY_ALIAS")
+    if (ficheiroChave != null && senhaChave != null && aliasChave != null) {
+        signingConfigs {
+            create("fixa") {
+                storeFile = file(ficheiroChave)
+                storePassword = senhaChave
+                keyAlias = aliasChave
+                keyPassword = senhaChave
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfigs.findByName("fixa")?.let { signingConfig = it }
+        }
         release {
+            signingConfigs.findByName("fixa")?.let { signingConfig = it }
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
