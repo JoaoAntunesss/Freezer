@@ -24,12 +24,13 @@ import java.net.URL
 
 /*
  * Atualizações dentro da app.
- * Cada versão nova é publicada como "Release" no GitHub (JoaoAntunesss/Freezer) com o APK anexado e a tag vX.Y.
- * A app lê a última Release, compara com a versão instalada e, se houver mais recente, descarrega e instala o APK.
+ * Cada versão nova é publicada no ramo "atualizacoes" do repositório JoaoAntunesss/Freezer:
+ * versao.json ({"versao": "1.3", "notas": "...", "apk": "freezer.apk"}) e o APK ao lado.
+ * A app lê o versao.json, compara com a versão instalada e, se houver mais recente, descarrega e instala o APK.
  * Os dados estão no Firebase, por isso atualizar não apaga nada.
  */
 
-private const val RELEASES_URL = "https://api.github.com/repos/JoaoAntunesss/Freezer/releases/latest"
+private const val BASE_ATUALIZACOES = "https://raw.githubusercontent.com/JoaoAntunesss/Freezer/atualizacoes/"
 
 data class NovaVersao(val versao: String, val notas: String, val urlApk: String, val tamanho: Long)
 
@@ -46,16 +47,13 @@ fun versaoMaisRecente(remota: String, local: String): Boolean {
 
 suspend fun procurarAtualizacao(): NovaVersao? = withContext(Dispatchers.IO) {
     try {
-        val conn = URL(RELEASES_URL).openConnection() as HttpURLConnection
-        conn.setRequestProperty("Accept", "application/vnd.github+json")
-        conn.connectTimeout = 10_000; conn.readTimeout = 10_000
+        val conn = URL(BASE_ATUALIZACOES + "versao.json?t=" + System.currentTimeMillis() / 60_000).openConnection() as HttpURLConnection
+        conn.connectTimeout = 10_000; conn.readTimeout = 10_000; conn.useCaches = false
         if (conn.responseCode != 200) return@withContext null
         val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-        val tag = json.optString("tag_name")
-        if (!versaoMaisRecente(tag, BuildConfig.VERSION_NAME)) return@withContext null
-        val assets = json.optJSONArray("assets") ?: return@withContext null
-        val apk = (0 until assets.length()).map { assets.getJSONObject(it) }.firstOrNull { it.optString("name").endsWith(".apk") } ?: return@withContext null
-        NovaVersao(tag.removePrefix("v"), json.optString("body").trim(), apk.getString("browser_download_url"), apk.optLong("size"))
+        val versao = json.optString("versao")
+        if (!versaoMaisRecente(versao, BuildConfig.VERSION_NAME)) return@withContext null
+        NovaVersao(versao, json.optString("notas").trim(), BASE_ATUALIZACOES + json.optString("apk", "freezer.apk"), json.optLong("tamanho"))
     } catch (_: Exception) { null }
 }
 

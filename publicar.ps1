@@ -1,18 +1,22 @@
-# Publica uma versão nova do Freezer para os telemóveis atualizarem dentro da app.
-# Uso:  .\publicar.ps1            (usa a versionName do app\build.gradle.kts)
-# Precisa de um token do GitHub com acesso ao repositório (Settings > Developer settings > Fine-grained token,
-# permissão "Contents: Read and write") guardado na variável de ambiente GITHUB_TOKEN.
+# Publica uma versão nova do Freezer; os telemóveis mostram "Nova versão" ao abrir a app.
+# 1) Sobe versionCode e versionName em app\build.gradle.kts   2) Corre:  .\publicar.ps1
+# Compila aqui (mesma chave de assinatura que a app instalada) e envia o APK para o ramo "atualizacoes" do GitHub.
 $ErrorActionPreference = "Stop"
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 $versao = (Select-String -Path app\build.gradle.kts -Pattern 'versionName = "(.+)"').Matches[0].Groups[1].Value
-Write-Host "A compilar a versão $versao..."
+$notas = Read-Host "Novidades da versão $versao (uma linha)"
+Write-Host "A compilar..."
 .\gradlew.bat assembleDebug --console=plain | Out-Null
-$apk = "app\build\outputs\apk\debug\app-debug.apk"
-if (-not $env:GITHUB_TOKEN) { throw "Define primeiro GITHUB_TOKEN" }
-$h = @{ Authorization = "Bearer $env:GITHUB_TOKEN"; Accept = "application/vnd.github+json" }
-$notas = Read-Host "Novidades desta versão (uma linha)"
-$rel = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/JoaoAntunesss/Freezer/releases" -Headers $h `
-  -Body (@{ tag_name = "v$versao"; name = "Freezer $versao"; body = $notas } | ConvertTo-Json) -ContentType "application/json"
-Invoke-RestMethod -Method Post -Uri "https://uploads.github.com/repos/JoaoAntunesss/Freezer/releases/$($rel.id)/assets?name=freezer-$versao.apk" `
-  -Headers $h -InFile $apk -ContentType "application/vnd.android.package-archive" | Out-Null
-Write-Host "Publicada: $($rel.html_url). Os telemóveis vão mostrar o aviso na próxima vez que abrirem a app."
+$tmp = Join-Path $env:TEMP "freezer-atualizacoes"
+if (Test-Path $tmp) { Remove-Item -Recurse -Force $tmp }
+New-Item -ItemType Directory $tmp | Out-Null
+Copy-Item app\build\outputs\apk\debug\app-debug.apk "$tmp\freezer.apk"
+$tam = (Get-Item "$tmp\freezer.apk").Length
+@{ versao = $versao; notas = $notas; apk = "freezer.apk"; tamanho = $tam } | ConvertTo-Json | Set-Content -Encoding utf8 "$tmp\versao.json"
+Push-Location $tmp
+git init -q -b atualizacoes
+git add -A
+git commit -q -m "Freezer $versao"
+git push -q -f https://github.com/JoaoAntunesss/Freezer.git atualizacoes   # ramo só com a última versão (não acumula APKs)
+Pop-Location
+Write-Host "Publicada a versão $versao."
