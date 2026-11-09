@@ -24,13 +24,13 @@ import java.net.URL
 
 /*
  * Atualizações dentro da app.
- * Cada versão nova é publicada no ramo "atualizacoes" do repositório JoaoAntunesss/Freezer:
+ * Cada versão nova é publicada pelo GitHub Actions como Release do repositório JoaoAntunesss/Freezer:
  * versao.json ({"versao": "1.3", "notas": "...", "apk": "freezer.apk"}) e o APK ao lado.
  * A app lê o versao.json, compara com a versão instalada e, se houver mais recente, descarrega e instala o APK.
  * Os dados estão no Firebase, por isso atualizar não apaga nada.
  */
 
-private const val BASE_ATUALIZACOES = "https://raw.githubusercontent.com/JoaoAntunesss/Freezer/atualizacoes/"
+private const val BASE_ATUALIZACOES = "https://github.com/JoaoAntunesss/Freezer/releases/latest/download/"
 
 data class NovaVersao(val versao: String, val notas: String, val urlApk: String, val tamanho: Long)
 
