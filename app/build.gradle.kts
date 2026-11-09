@@ -20,8 +20,8 @@ android {
         applicationId = "com.example.congelador"
         minSdk = 24
         targetSdk = 35
-        versionCode = 6
-        versionName = "1.5"
+        versionCode = 7
+        versionName = "1.6"
         buildConfigField("String", "GROQ_API_KEY", "\"${chavesLocais.getProperty("GROQ_API_KEY", System.getenv("GROQ_API_KEY") ?: "")}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
