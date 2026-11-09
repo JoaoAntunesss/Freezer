@@ -1736,6 +1736,12 @@ fun EcraEquipamentos(viewModel: ArcaViewModel) {
             Spacer(modifier = Modifier.height(12.dp))
 
             if (todasArcas.isNotEmpty()) {
+                val itensDaArca = arcaAtual?.let { a -> viewModel.itensItemFiltradoPorCategoria(a.id, categoriaFiltro)
+                    .filter { pesquisaStock.isBlank() || it.nome.contains(pesquisaStock.trim(), ignoreCase = true) } } ?: emptyList()
+                // Tudo desliza em conjunto: ao puxar para cima, a lista de artigos fica com o ecrã inteiro.
+                LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 96.dp)) {
+                    item {
+                        Column {
                 Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("Todos", "Arcas", "Frigoríficos", "Despensa").forEach { filtro ->
                         FilterChip(
@@ -1840,15 +1846,18 @@ fun EcraEquipamentos(viewModel: ArcaViewModel) {
                     )
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    val itensDaArca = viewModel.itensItemFiltradoPorCategoria(arcaAtual.id, categoriaFiltro)
-                        .filter { pesquisaStock.isBlank() || it.nome.contains(pesquisaStock.trim(), ignoreCase = true) }
-                    if (itensDaArca.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                            EstadoVazio(Icons.Default.Inventory2, if (pesquisaStock.isBlank() && categoriaFiltro == "Todas") "Ainda sem artigos" else "Nada encontrado",
-                                if (pesquisaStock.isBlank() && categoriaFiltro == "Todas") "Toca no + para adicionar o primeiro artigo, por voz ou código de barras." else "Experimenta outra categoria ou outra pesquisa.")
+                }
                         }
-                    } else {
-                        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 96.dp)) {
+                    }
+                    if (arcaAtual != null) {
+                        if (itensDaArca.isEmpty()) {
+                            item {
+                                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
+                                    EstadoVazio(Icons.Default.Inventory2, if (pesquisaStock.isBlank() && categoriaFiltro == "Todas") "Ainda sem artigos" else "Nada encontrado",
+                                if (pesquisaStock.isBlank() && categoriaFiltro == "Todas") "Toca no + para adicionar o primeiro artigo, por voz ou código de barras." else "Experimenta outra categoria ou outra pesquisa.")
+                                }
+                            }
+                        } else {
                             items(itensDaArca) { item ->
                                 val dias = item.dataValidade?.let { diasAte(it) }
                                 val expirou = dias != null && dias < 0
