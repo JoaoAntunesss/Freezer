@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -1256,13 +1257,22 @@ private fun CartaoArtigo(item: ItemArca, expirou: Boolean, expiraBreve: Boolean,
 }
 
 class MainActivity : ComponentActivity() {
+    // muda sempre que a app volta ao ecrã (por exemplo, depois de pagar no navegador) para voltar a ver o plano
+    private val retomar = mutableStateOf(0)
+
+    override fun onResume() {
+        super.onResume()
+        retomar.value = retomar.value + 1
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             FreezerTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = BgDark) {
                     val viewModel: ArcaViewModel = viewModel()
-                    if (viewModel.utilizadorAtualEmail == null) EcraLogin(viewModel) else AppNavegacao(viewModel)
+                    if (viewModel.utilizadorAtualEmail == null) EcraLogin(viewModel)
+                    else PortaoPlano(viewModel, retomar.value) { AppNavegacao(viewModel) }
                 }
             }
         }
@@ -3304,6 +3314,137 @@ fun DesenhoArcaTech(percentagem: Float, volumeOcupado: Float, capacidadeTotal: F
         Box(modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)).background(BgDark)) {
             Box(modifier = Modifier.fillMaxWidth(anim).fillMaxHeight().clip(RoundedCornerShape(5.dp)).background(
                 if (percentagem >= 0.7f) Brush.horizontalGradient(listOf(cor, cor)) else AestheticGradient))
+        }
+    }
+}
+
+// ---------- PLANO: 24 horas grátis, depois 1 €/mês ou 10 €/ano ----------
+// O servidor da AW (appEstado) confirma a conta Google e procura o pagamento no Stripe.
+// Sem internet vale a última resposta guardada (o teste acaba à hora certa; o pago tem 7 dias de folga).
+private const val PLANO_API = "https://europe-west1-aw-sites-e31c3.cloudfunctions.net/"
+
+private data class EstadoPlano(
+    val estado: String, val fimTeste: Long = 0L, val ate: Long = 0L,
+    val link: String = "", val linkAno: String = "", val email: String = ""
+)
+
+private fun prefsPlano(ctx: Context) = ctx.getSharedPreferences("FreezerPlano", Context.MODE_PRIVATE)
+
+private fun inicioPlano(ctx: Context): Long {
+    val p = prefsPlano(ctx)
+    val v = p.getLong("inicio", 0L)
+    if (v > 0L) return v
+    val agora = System.currentTimeMillis()
+    p.edit().putLong("inicio", agora).apply()
+    return agora
+}
+
+private fun planoDeJson(j: JSONObject) = EstadoPlano(
+    j.optString("estado"), j.optLong("fimTeste"), j.optLong("ate"),
+    j.optString("link"), j.optString("linkAno"), j.optString("email")
+)
+
+private fun planoGuardado(ctx: Context, email: String?): EstadoPlano? {
+    val s = prefsPlano(ctx).getString("ultimo", null) ?: return null
+    val p = runCatching { planoDeJson(JSONObject(s)) }.getOrNull() ?: return null
+    return if (email != null && p.email == email) p else null
+}
+
+private suspend fun pedirPlano(ctx: Context, pago: Boolean): EstadoPlano? = withContext(Dispatchers.IO) {
+    try {
+        val user = FirebaseAuth.getInstance().currentUser ?: return@withContext null
+        val tok = user.getIdToken(false).aguardar().token ?: return@withContext null
+        val url = URL(PLANO_API + "appEstado?app=freezer&inicio=" + inicioPlano(ctx) + (if (pago) "&pago=1" else ""))
+        val c = (url.openConnection() as HttpURLConnection).apply {
+            connectTimeout = 10_000; readTimeout = 25_000
+            setRequestProperty("Authorization", "Bearer $tok")
+        }
+        try {
+            if (c.responseCode != 200) return@withContext null
+            val j = JSONObject(c.inputStream.bufferedReader().readText())
+            j.put("email", user.email ?: "")
+            prefsPlano(ctx).edit().putString("ultimo", j.toString()).apply()
+            planoDeJson(j)
+        } finally { c.disconnect() }
+    } catch (e: Exception) { null }
+}
+
+private fun planoBloqueia(p: EstadoPlano?): Boolean {
+    if (p == null) return false
+    val agora = System.currentTimeMillis()
+    return when (p.estado) {
+        "pagar" -> true
+        "teste" -> p.fimTeste in 1 until agora
+        "pago" -> p.ate > 0L && agora > p.ate + 7 * 86_400_000L
+        else -> false
+    }
+}
+
+@Composable
+fun PortaoPlano(viewModel: ArcaViewModel, retomar: Int, conteudo: @Composable () -> Unit) {
+    val ctx = LocalContext.current
+    val email = viewModel.utilizadorAtualEmail
+    var plano by remember(email) { mutableStateOf(planoGuardado(ctx, email)) }
+    LaunchedEffect(email, retomar) { pedirPlano(ctx, false)?.let { plano = it } }
+    if (planoBloqueia(plano)) EcraPagar(plano!!, viewModel) { novo -> plano = novo } else conteudo()
+}
+
+@Composable
+private fun EcraPagar(plano: EstadoPlano, viewModel: ArcaViewModel, onNovo: (EstadoPlano) -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var aConfirmar by remember { mutableStateOf(false) }
+    fun abrir(url: String) {
+        if (url.isBlank()) { Toast.makeText(ctx, "Sem ligação. Tenta outra vez daqui a pouco.", Toast.LENGTH_LONG).show(); return }
+        try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
+    }
+    Box(
+        modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(AccentStart.copy(alpha = 0.16f), BgDark, BgDark), endY = 1400f))
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier.size(96.dp).clip(RoundedCornerShape(28.dp)).background(SurfaceDark).border(1.dp, AestheticGradient, RoundedCornerShape(28.dp)),
+                contentAlignment = Alignment.Center
+            ) { Icon(imageVector = Icons.Default.AcUnit, contentDescription = null, tint = AccentStart, modifier = Modifier.size(52.dp)) }
+            Spacer(modifier = Modifier.height(24.dp))
+            Text("O teu dia grátis acabou", fontWeight = FontWeight.Bold, color = TextPrimary, style = MaterialTheme.typography.headlineSmall)
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                "O Freezer custa 1 € por mês, ou 10 € por ano (dois meses grátis). Cancelas quando quiseres. Os teus dados ficam guardados.",
+                color = TextSecondary, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(36.dp))
+            Button(
+                onClick = { abrir(plano.link) },
+                modifier = Modifier.fillMaxWidth().height(56.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent), contentPadding = PaddingValues()
+            ) {
+                Box(modifier = Modifier.fillMaxSize().background(AestheticGradient, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                    Text("Pagar 1 € por mês", fontWeight = FontWeight.Bold, color = BgDark)
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = { abrir(plano.linkAno) },
+                modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(16.dp)
+            ) { Text("10 € por ano", fontWeight = FontWeight.Bold, color = TextPrimary) }
+            Spacer(modifier = Modifier.height(20.dp))
+            TextButton(
+                enabled = !aConfirmar,
+                onClick = {
+                    aConfirmar = true
+                    scope.launch {
+                        val r = pedirPlano(ctx, true)
+                        aConfirmar = false
+                        if (r != null) onNovo(r)
+                        if (r == null || planoBloqueia(r))
+                            Toast.makeText(ctx, "Ainda não encontrámos o pagamento. Se acabaste de pagar, espera um minuto e tenta outra vez.", Toast.LENGTH_LONG).show()
+                    }
+                }
+            ) { Text(if (aConfirmar) "A confirmar…" else "Já paguei", color = AccentStart, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = { viewModel.logout() }) { Text("Entrar com outra conta", color = TextSecondary) }
         }
     }
 }
