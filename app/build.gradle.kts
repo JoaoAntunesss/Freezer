@@ -20,7 +20,7 @@ android {
         applicationId = "com.example.congelador"
         minSdk = 24
         targetSdk = 35
-        versionCode = 7
+        versionCode = 8
         versionName = "1.7"
         buildConfigField("String", "GROQ_API_KEY", "\"${chavesLocais.getProperty("GROQ_API_KEY", System.getenv("GROQ_API_KEY") ?: "")}\"")
 
