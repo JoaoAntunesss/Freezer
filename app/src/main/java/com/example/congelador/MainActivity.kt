@@ -3105,6 +3105,9 @@ fun EcraConfiguracoes(viewModel: ArcaViewModel) {
         }
         encontrada?.let { DialogoAtualizacao(it) { encontrada = null } }
 
+        Spacer(modifier = Modifier.height(16.dp))
+        CartaoSubscricao(viewModel.utilizadorAtualEmail)
+
         Spacer(modifier = Modifier.height(24.dp))
 
         Text("Gestão de Dados", color = TextPrimary, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
@@ -3325,7 +3328,8 @@ private const val PLANO_API = "https://europe-west1-aw-sites-e31c3.cloudfunction
 
 private data class EstadoPlano(
     val estado: String, val fimTeste: Long = 0L, val ate: Long = 0L,
-    val link: String = "", val linkAno: String = "", val email: String = ""
+    val link: String = "", val linkAno: String = "", val email: String = "",
+    val cancelada: Boolean = false
 )
 
 private fun prefsPlano(ctx: Context) = ctx.getSharedPreferences("FreezerPlano", Context.MODE_PRIVATE)
@@ -3341,7 +3345,7 @@ private fun inicioPlano(ctx: Context): Long {
 
 private fun planoDeJson(j: JSONObject) = EstadoPlano(
     j.optString("estado"), j.optLong("fimTeste"), j.optLong("ate"),
-    j.optString("link"), j.optString("linkAno"), j.optString("email")
+    j.optString("link"), j.optString("linkAno"), j.optString("email"), j.optBoolean("cancelada")
 )
 
 private fun planoGuardado(ctx: Context, email: String?): EstadoPlano? {
@@ -3445,6 +3449,79 @@ private fun EcraPagar(plano: EstadoPlano, viewModel: ArcaViewModel, onNovo: (Est
                 }
             ) { Text(if (aConfirmar) "A confirmar…" else "Já paguei", color = AccentStart, fontWeight = FontWeight.Bold) }
             TextButton(onClick = { viewModel.logout() }) { Text("Entrar com outra conta", color = TextSecondary) }
+        }
+    }
+}
+
+// abre o portal do Stripe para gerir ou cancelar a subscrição (devolve o link, ou a mensagem de erro do servidor)
+private suspend fun linkGerirSubscricao(): Pair<String?, String?> = withContext(Dispatchers.IO) {
+    try {
+        val user = FirebaseAuth.getInstance().currentUser ?: return@withContext null to "Entra com a tua conta Google."
+        val tok = user.getIdToken(false).aguardar().token ?: return@withContext null to "Entra com a tua conta Google."
+        val c = (URL(PLANO_API + "appGerir?app=freezer").openConnection() as HttpURLConnection).apply {
+            connectTimeout = 10_000; readTimeout = 25_000
+            setRequestProperty("Authorization", "Bearer $tok")
+        }
+        try {
+            val ok = c.responseCode == 200
+            val corpo = (if (ok) c.inputStream else c.errorStream)?.bufferedReader()?.readText() ?: ""
+            val j = runCatching { JSONObject(corpo) }.getOrNull()
+            if (ok) j?.optString("url")?.takeIf { it.isNotBlank() } to null
+            else null to (j?.optString("erro")?.takeIf { it.isNotBlank() } ?: "Não foi possível abrir a gestão da subscrição.")
+        } finally { c.disconnect() }
+    } catch (e: Exception) { null to "Sem ligação. Tenta outra vez daqui a pouco." }
+}
+
+@Composable
+private fun CartaoSubscricao(email: String?) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var plano by remember(email) { mutableStateOf(planoGuardado(ctx, email)) }
+    var aAbrir by remember { mutableStateOf(false) }
+    LaunchedEffect(email) { pedirPlano(ctx, false)?.let { plano = it } }
+    val fmt = remember { java.text.SimpleDateFormat("d/MM/yyyy HH:mm", java.util.Locale("pt", "PT")) }
+    fun abrir(url: String) { try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {} }
+    val p = plano
+    val texto = when (p?.estado) {
+        "pago" -> if (p.ate > 0L) (if (p.cancelada) "Cancelada. Tens acesso até " else "Paga. Renova a ") + fmt.format(java.util.Date(p.ate)) + "." else "Paga."
+        "teste" -> "Período grátis até " + fmt.format(java.util.Date(p.fimTeste)) + ". Depois 1 € por mês ou 10 € por ano."
+        "gratis" -> "Grátis nesta conta."
+        "pagar" -> "Sem subscrição ativa."
+        else -> "A confirmar…"
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth().border(0.5.dp, GlassBorder, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = SurfaceDark), shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+            Text("Subscrição", color = TextPrimary, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(texto, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+            if (p?.estado == "teste" || p?.estado == "pagar") {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(
+                        enabled = p.link.isNotBlank(), onClick = { abrir(p.link) },
+                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = AccentStart.copy(alpha = 0.16f), contentColor = AccentStart)
+                    ) { Text("1 € por mês") }
+                    OutlinedButton(enabled = p.linkAno.isNotBlank(), onClick = { abrir(p.linkAno) }) { Text("10 € por ano", color = TextPrimary) }
+                }
+            }
+            if (p?.estado == "pago") {
+                Spacer(modifier = Modifier.height(12.dp))
+                FilledTonalButton(
+                    enabled = !aAbrir,
+                    onClick = {
+                        aAbrir = true
+                        scope.launch {
+                            val (url, erro) = linkGerirSubscricao()
+                            aAbrir = false
+                            if (url != null) abrir(url) else Toast.makeText(ctx, erro, Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = AccentStart.copy(alpha = 0.16f), contentColor = AccentStart)
+                ) { Text(if (aAbrir) "A abrir…" else "Gerir ou cancelar") }
+            }
         }
     }
 }
